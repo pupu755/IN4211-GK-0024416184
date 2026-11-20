@@ -61,3 +61,16 @@ Ba nguyên lý SOLID mà lớp `EventService` ban đầu vi phạm:
 3. **DIP (Dependency Inversion Principle - Nguyên lý Đảo ngược Phụ thuộc):**
    - *Dòng vi phạm:* Dòng 8 (`new SqlConnection(...)`), dòng 12 (`new EmailSender()`), dòng 14 (`new SmsSender()`).
    - *Giải thích:* Module cấp cao (`EventService`) phụ thuộc trực tiếp vào các chi tiết cụ thể cấp thấp (`SqlConnection`, `EmailSender`, `SmsSender`) thay vì phụ thuộc vào abstraction (interface). Điều này gây ra liên kết chặt (tight coupling), khiến mã nguồn khó mở rộng, không thể thay thế linh hoạt và không thể viết unit test độc lập do luôn dính chặt vào CSDL và các sender thực tế.
+
+## Câu 4b
+Phân biệt `git merge` và `git rebase`:
+
+| Tiêu chí | `git merge` | `git rebase` |
+| :--- | :--- | :--- |
+| **Cơ chế hoạt động** | Kết hợp các nhánh lại với nhau bằng cách tạo ra một **commit gộp mới (merge commit)** có hai commit cha. | Đặt lại điểm gốc của nhánh hiện tại lên đỉnh của nhánh đích, sau đó áp dụng lần lượt từng commit lên đó (tạo ra các commit mới với SHA mới). |
+| **Lịch sử commit** | Giữ nguyên vẹn toàn bộ lịch sử nhánh cũ theo đúng trình tự thời gian; lịch sử có dạng đồ thị phân nhánh (non-linear). | Lịch sử được viết lại thành một đường thẳng tắp, liên tục và gọn gàng (linear history), không sinh ra merge commit phụ. |
+| **Tính an toàn** | Rất an toàn, không thay đổi các commit đã có trong quá khứ. | Thay đổi mã SHA và viết lại lịch sử commit. |
+
+**Khi nào không nên dùng rebase (Quy tắc vàng của Git Rebase):**
+- **Không bao giờ rebase trên các nhánh công khai/dùng chung (public/shared branches)** như `main`, `master`, `develop` hoặc các nhánh đang có nhiều thành viên khác cùng kéo về và làm việc.
+- *Lý do:* Vì rebase sẽ tạo ra các mã băm commit mới và viết lại lịch sử. Nếu ai đó đã pull các commit cũ về máy và tiếp tục phát triển dựa trên đó, việc rebase rồi force push (`push --force`) sẽ làm phân mảnh lịch sử, gây ra xung đột hàng loạt rất phức tạp và khó phục hồi đối với các thành viên trong nhóm.
