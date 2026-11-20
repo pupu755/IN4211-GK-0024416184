@@ -29,3 +29,20 @@ Bốn trụ cột của lập trình hướng đối tượng (OOP):
 Hai vấn đề về đóng gói của lớp `Member` trong đoạn mã đề bài:
 1. **Sử dụng public setter (`public Guid Id { get; set; }`, `public string Email { get; set; }`):** Cho phép bất kỳ đoạn mã nào bên ngoài đối tượng cũng có thể trực tiếp sửa đổi dữ liệu tùy tiện mà không qua cơ chế kiểm tra (validation), phá vỡ tính toàn vẹn của dữ liệu (ví dụ: dòng 9 gán `m.Email = "abc"` không hợp lệ vẫn bị lưu).
 2. **Cung cấp constructor mặc định public không tham số (`public Member() { }`):** Cho phép khởi tạo đối tượng `Member` ở trạng thái rỗng hoặc không hợp lệ (Id là `Guid.Empty`, Email mang giá trị rỗng/null) mà không bắt buộc phải truyền vào các thông tin hợp lệ ngay khi tạo.
+
+## Câu 2a
+Sơ đồ trạng thái của `Registration` bằng Mermaid (`stateDiagram-v2`):
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending : Create()
+    Pending --> Confirmed : Confirm()
+    Pending --> Cancelled : Cancel()
+    Confirmed --> Cancelled : Cancel()
+    Cancelled --> [*]
+```
+
+- Phiếu mới được tạo bằng `Registration.Create(...)` sẽ ở trạng thái khởi đầu là `Pending`.
+- Từ `Pending`, gọi `Confirm()` chuyển sang `Confirmed`, hoặc gọi `Cancel()` chuyển sang `Cancelled`.
+- Từ `Confirmed`, gọi `Cancel()` chuyển sang `Cancelled`.
+- Khi đã ở `Cancelled`, phiếu không thể thực hiện bất kỳ chuyển đổi trạng thái nào khác (mọi thao tác `Confirm()` hay `Cancel()` tiếp theo đều ném `InvalidOperationException`).
