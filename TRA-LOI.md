@@ -74,3 +74,91 @@ Phân biệt `git merge` và `git rebase`:
 **Khi nào không nên dùng rebase (Quy tắc vàng của Git Rebase):**
 - **Không bao giờ rebase trên các nhánh công khai/dùng chung (public/shared branches)** như `main`, `master`, `develop` hoặc các nhánh đang có nhiều thành viên khác cùng kéo về và làm việc.
 - *Lý do:* Vì rebase sẽ tạo ra các mã băm commit mới và viết lại lịch sử. Nếu ai đó đã pull các commit cũ về máy và tiếp tục phát triển dựa trên đó, việc rebase rồi force push (`push --force`) sẽ làm phân mảnh lịch sử, gây ra xung đột hàng loạt rất phức tạp và khó phục hồi đối với các thành viên trong nhóm.
+
+## Câu 5a
+### Chiều phụ thuộc giữa các project theo Clean Architecture:
+- `EduHub.Domain`: Không tham chiếu đến bất kỳ project nào (lõi trung tâm).
+- `EduHub.Application`: Tham chiếu tới `EduHub.Domain`.
+- `EduHub.Infrastructure`: Tham chiếu tới `EduHub.Application` và `EduHub.Domain`.
+- `EduHub.API` (Presentation): Tham chiếu tới `EduHub.Application` và `EduHub.Infrastructure` (phục vụ đăng ký cấu hình DI tại composition root `Program.cs`).
+- `EduHub.Tests`: Tham chiếu tới `EduHub.Domain`, `EduHub.Application`, `EduHub.Infrastructure` và `EduHub.API`.
+
+Lệnh thiết lập tham chiếu:
+```bash
+dotnet add EduHub.Application reference EduHub.Domain
+dotnet add EduHub.Infrastructure reference EduHub.Application EduHub.Domain
+dotnet add EduHub.API reference EduHub.Application EduHub.Infrastructure
+dotnet add EduHub.Tests reference EduHub.Domain EduHub.Application EduHub.Infrastructure EduHub.API
+```
+
+### Sơ đồ bốn lớp và phân bổ các thành phần:
+```mermaid
+flowchart TD
+    subgraph Presentation ["Presentation Layer (EduHub.API)"]
+        EventsController["EventsController"]
+    end
+
+    subgraph Infrastructure ["Infrastructure Layer (EduHub.Infrastructure)"]
+        InMemoryEventRepository["InMemoryEventRepository"]
+        EmailNotificationService["EmailNotificationService"]
+        SmsNotificationService["SmsNotificationService"]
+        NotificationServiceFactory["NotificationServiceFactory"]
+    end
+
+    subgraph Application ["Application Layer (EduHub.Application)"]
+        EventService["EventService"]
+        INotificationService["INotificationService (Interface)"]
+        INotificationServiceFactory["INotificationServiceFactory (Interface)"]
+    end
+
+    subgraph Domain ["Domain Layer (EduHub.Domain)"]
+        EventEntity["Event (Entity)"]
+        MemberEntity["Member (Entity)"]
+        RegistrationEntity["Registration (Entity)"]
+        IEventRepository["IEventRepository (Interface)"]
+    end
+
+    EventsController --> EventService
+    EventsController -.-> InMemoryEventRepository
+    EventService --> IEventRepository
+    EventService --> EventEntity
+    EventService --> INotificationService
+    InMemoryEventRepository --> IEventRepository
+    InMemoryEventRepository --> EventEntity
+    NotificationServiceFactory --> INotificationServiceFactory
+    EmailNotificationService --> INotificationService
+    SmsNotificationService --> INotificationService
+```
+
+Vị trí cụ thể của 5 thành phần theo yêu cầu:
+1. `Event`: Thuộc lớp **Domain** (`EduHub.Domain/Entities/Event.cs`).
+2. `IEventRepository`: Thuộc lớp **Domain** (`EduHub.Domain/Interfaces/IEventRepository.cs`).
+3. `EventService`: Thuộc lớp **Application** (`EduHub.Application/Services/EventService.cs`).
+4. `InMemoryEventRepository`: Thuộc lớp **Infrastructure** (`EduHub.Infrastructure/Repositories/InMemoryEventRepository.cs`).
+5. `EventsController`: Thuộc lớp **Presentation / API** (`EduHub.API/Controllers/EventsController.cs`).
+
+## Câu 5b
+**Giải thích vì sao project `EduHub.Domain` không được tham chiếu tới `EduHub.Infrastructure`:**
+- `EduHub.Domain` là tầng lõi trung tâm chứa các thực thể và quy tắc nghiệp vụ cốt lõi của doanh nghiệp (Enterprise Business Rules), trong khi `EduHub.Infrastructure` là tầng ngoại vi chứa các chi tiết kỹ thuật công nghệ bên ngoài (cơ sở dữ liệu, gửi email, đọc file, thư viện bên thứ ba...).
+- Theo **Quy tắc phụ thuộc (Dependency Rule)** của Clean Architecture và **Nguyên lý Đảo ngược phụ thuộc (DIP)**: Chiều phụ thuộc luôn luôn hướng từ ngoài vào trong. Lớp lõi bên trong không được phép biết hay phụ thuộc vào lớp vỏ bên ngoài.
+- Nếu `Domain` tham chiếu tới `Infrastructure`, tầng lõi nghiệp vụ sẽ bị dính chặt vào công nghệ cụ thể (ví dụ kết nối trực tiếp SQL, EF Core). Khi đó, mỗi lần thay đổi công nghệ lưu trữ hoặc nhà cung cấp dịch vụ hạ tầng, ta buộc phải sửa đổi lại cả tầng `Domain`, làm phá vỡ tính ổn định, mất khả năng tái sử dụng và gây khó khăn lớn cho việc kiểm thử độc lập.
+
+## Câu 5d
+**Giải thích nguyên nhân:**
+- Khi đăng ký dịch vụ trong container bằng `AddScoped`, một đối tượng mới sẽ được tạo ra cho **mỗi vòng đời của một HTTP Request** và bị huỷ đi khi request kết thúc.
+- Nếu `InMemoryEventRepository` lưu dữ liệu bằng một `List<Event>` thông thường (danh sách gắn với thể hiện của đối tượng - instance field, không phải `static`):
+  1. Khi client gửi một yêu cầu `POST /api/clubs/{clubId}/events`, DI container sẽ khởi tạo một instance `InMemoryEventRepository` mới với một `List<Event>` mới (ban đầu rỗng). Dữ liệu được thêm vào danh sách này, request kết thúc và instance đó bị GC (Garbage Collector) dọn dẹp.
+  2. Khi client gửi tiếp yêu cầu `GET /api/clubs/{clubId}/events`, đây là một HTTP Request hoàn toàn mới, container lại khởi tạo một instance `InMemoryEventRepository` mới tinh với một `List<Event>` rỗng khác. Do đó kết quả trả về luôn là danh sách rỗng.
+
+**Cách đã thực hiện để khắc phục lỗi:**
+1. **Đăng ký dịch vụ dưới dạng Singleton (`AddSingleton`) trong `Program.cs`:**
+   ```csharp
+   builder.Services.AddSingleton<IEventRepository, InMemoryEventRepository>();
+   ```
+   Dịch vụ Singleton chỉ được khởi tạo duy nhất một lần trong toàn bộ vòng đời của ứng dụng Web API và được dùng chung cho tất cả các HTTP Request.
+2. **Khai báo danh sách lưu trữ dạng `static` kèm khoá đồng bộ `lock` bên trong `InMemoryEventRepository`:**
+   ```csharp
+   private static readonly List<Event> _events = new();
+   private static readonly object _lock = new();
+   ```
+   Biến `static` thuộc về cấp độ Type (lớp) chứ không thuộc về thể hiện riêng lẻ (instance), do đó dữ liệu được chia sẻ và lưu giữ qua mọi HTTP Request kể cả trong trường hợp vô tình đăng ký dịch vụ bằng `AddTransient` hay `AddScoped`.
