@@ -1,11 +1,21 @@
+using EduHub.Application.Interfaces;
+using EduHub.Application.Services;
+using EduHub.Domain.Interfaces;
+using EduHub.Infrastructure.Repositories;
+using EduHub.Infrastructure.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Đăng ký Dependency Injection cho các tầng Clean Architecture
+builder.Services.AddSingleton<IEventRepository, InMemoryEventRepository>();
+builder.Services.AddSingleton<INotificationServiceFactory, NotificationServiceFactory>();
+builder.Services.AddTransient<INotificationService, EmailNotificationService>();
+builder.Services.AddScoped<EventService>();
 
 var app = builder.Build();
 

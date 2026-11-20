@@ -46,3 +46,18 @@ stateDiagram-v2
 - Từ `Pending`, gọi `Confirm()` chuyển sang `Confirmed`, hoặc gọi `Cancel()` chuyển sang `Cancelled`.
 - Từ `Confirmed`, gọi `Cancel()` chuyển sang `Cancelled`.
 - Khi đã ở `Cancelled`, phiếu không thể thực hiện bất kỳ chuyển đổi trạng thái nào khác (mọi thao tác `Confirm()` hay `Cancel()` tiếp theo đều ném `InvalidOperationException`).
+
+## Câu 3a
+Ba nguyên lý SOLID mà lớp `EventService` ban đầu vi phạm:
+
+1. **SRP (Single Responsibility Principle - Nguyên lý Đơn trách nhiệm):**
+   - *Dòng vi phạm:* Dòng 6–14 (cụ thể: dòng 6–7 kiểm tra hợp lệ, dòng 8–9 kết nối CSDL và ghi dữ liệu, dòng 10 ghi file log vật lý, dòng 11–14 xử lý gửi thông báo).
+   - *Giải thích:* Lớp `EventService` gánh vác quá nhiều lý do để thay đổi: vừa xác thực dữ liệu, vừa thao tác trực tiếp với cơ sở dữ liệu, vừa ghi nhật ký ra file cục bộ, vừa định tuyến và gửi thông báo. Thay đổi ở bất kỳ khâu nào (đổi cách ghi log, đổi hệ quản trị CSDL, đổi cơ chế thông báo) đều buộc phải sửa lớp này.
+
+2. **OCP (Open/Closed Principle - Nguyên lý Đóng/Mở):**
+   - *Dòng vi phạm:* Dòng 11–14 (`if (channel == "email") ... else if (channel == "sms") ...`).
+   - *Giải thích:* Lớp không đóng với sửa đổi và không mở với mở rộng. Khi muốn bổ sung một kênh gửi thông báo mới (ví dụ Zalo, Telegram, Push Notification), ta bắt buộc phải can thiệp và sửa đổi trực tiếp vào thân mã nguồn của phương thức `CreateEvent`, làm tăng rủi ro gây lỗi trên các kênh đang chạy ổn định.
+
+3. **DIP (Dependency Inversion Principle - Nguyên lý Đảo ngược Phụ thuộc):**
+   - *Dòng vi phạm:* Dòng 8 (`new SqlConnection(...)`), dòng 12 (`new EmailSender()`), dòng 14 (`new SmsSender()`).
+   - *Giải thích:* Module cấp cao (`EventService`) phụ thuộc trực tiếp vào các chi tiết cụ thể cấp thấp (`SqlConnection`, `EmailSender`, `SmsSender`) thay vì phụ thuộc vào abstraction (interface). Điều này gây ra liên kết chặt (tight coupling), khiến mã nguồn khó mở rộng, không thể thay thế linh hoạt và không thể viết unit test độc lập do luôn dính chặt vào CSDL và các sender thực tế.
