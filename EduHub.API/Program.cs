@@ -14,8 +14,12 @@ builder.Services.AddSwaggerGen();
 // Đăng ký Dependency Injection cho các tầng Clean Architecture
 builder.Services.AddSingleton<IEventRepository, InMemoryEventRepository>();
 builder.Services.AddSingleton<INotificationServiceFactory, NotificationServiceFactory>();
-builder.Services.AddTransient<INotificationService, EmailNotificationService>();
-builder.Services.AddScoped<EventService>();
+builder.Services.AddScoped<EventService>(sp =>
+    new EventService(
+        sp.GetRequiredService<IEventRepository>(),
+        sp.GetRequiredService<INotificationServiceFactory>()
+    )
+);
 
 var app = builder.Build();
 
